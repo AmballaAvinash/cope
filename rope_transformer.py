@@ -215,7 +215,7 @@ class Transformer(nn.Module):
                   
         
 # This is a skeleton for train_classifier: you can implement this however you want
-def train_rope_classifier(args, train, dev):
+def train_rope_classifier(args, train, dev, num_epochs):
     # raise Exception("Not fully implemented yet")
 
     # The following code DOES NOT WORK but can be a starting point for your implementation
@@ -225,7 +225,6 @@ def train_rope_classifier(args, train, dev):
     model.train()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     
-    num_epochs = 10
     loss_epochs = []
     for t in range(0, num_epochs):
         print("epoch {}".format(t))

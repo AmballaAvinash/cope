@@ -5,10 +5,11 @@ import json
 import time
 import numpy as np
 from utils import *
-from complex_transformer import train_complex_classifier, decode_complex
+from complex_transformer_single_realV import train_complex_classifier, decode_complex
 from learned_transformer import train_learned_classifier, decode_learned, LetterCountingExample
 from rope_transformer import train_rope_classifier, decode_rope
 from sine_transformer import train_sine_classifier, decode_sin
+import pandas as pd 
 
 import matplotlib.pyplot as plt
 
@@ -81,142 +82,104 @@ if __name__ == '__main__':
 
 
     # trails
-
-    N_exp = 1
-    
-    # loss_learned = []
-    # acc_learned =[]
-    # for i in range(N_exp):
-    #     print("Learned Experiment {}".format(i))
-    #     model, loss_epochs = train_learned_classifier(args, train_bundles, dev_bundles)
-    #     loss_learned.append(loss_epochs)
-    #     # Deco,des t he first 5 dev examples to display as output
-    #     small_test_acc = decode_learned(model, dev_bundles[0:5], do_print=True, do_plot_attn=True)
-    #     # Decodes 100 training examples and the entire dev set (1000 examples)
-    #     print("Training accuracy (100 exs):")
-    #     train_acc =  decode_learned(model, train_bundles[0:100])
-    #     print("Dev accuracy (whole set):")
-    #     test_acc = decode_learned(model, dev_bundles)
-    #     acc_learned.append(test_acc)
-
-    # loss_learned = np.array(loss_learned)
-    # acc_learned = np.array(acc_learned)
-
-
-
-    # loss_sine = []
-    # acc_sine=[]
-    # for i in range(N_exp):
-    #     print("SINE Experiment {}".format(i))
-    #     model, loss_epochs = train_sine_classifier(args, train_bundles, dev_bundles)
-    #     loss_sine.append(loss_epochs)
-    #     # Deco,des t he first 5 dev examples to display as output
-    #     small_test_acc = decode_sin(model, dev_bundles[0:5], do_print=True, do_plot_attn=True)
-    #     # Decodes 100 training examples and the entire dev set (1000 examples)
-    #     print("Training accuracy (100 exs):")
-    #     train_acc =  decode_sin(model, train_bundles[0:100])
-    #     print("Dev accuracy (whole set):")
-    #     test_acc = decode_sin(model, dev_bundles)
-    #     acc_sine.append(test_acc)
-
-    # loss_sine = np.array(loss_sine)
-    # acc_sine = np.array(acc_sine)
-
-
-    
-    loss_complex = []
-    acc_complex = []
-
+    N_exp = 5
+   
+    # Learned 
+    loss_learned = []
+    acc_learned =[]
     for i in range(N_exp):
-        print("Complex Experiment {}".format(i))
-        model, loss_epochs = train_complex_classifier(args, train_bundles, dev_bundles)
-        loss_complex.append(loss_epochs)
-        # Deco,des the first 5 dev examples to display as output
-        small_test_acc = decode_complex(model, dev_bundles[0:5], do_print=True, do_plot_attn=True)
-        # Decodes 100 training examples and the entire dev set (1000 examples)
-        print("Training accuracy (100 exs):")
-        train_acc =  decode_complex(model, train_bundles[0:100])
-        print("Dev accuracy (whole set):")
-        test_acc = decode_complex(model, dev_bundles)
-        acc_complex.append(test_acc)
-
-    loss_complex = np.array(loss_complex)
-    acc_complex = np.array(acc_complex)
-
-
-    loss_rope = []
-    acc_rope =[]
-    for i in range(N_exp):
-        print("ROPE Experiment {}".format(i))
-        model, loss_epochs = train_rope_classifier(args, train_bundles, dev_bundles)
-        loss_rope.append(loss_epochs)
+        print("Learned Experiment {}".format(i))
+        model, loss_epochs = train_learned_classifier(args, train_bundles, dev_bundles,num_epochs=10)
+        loss_learned.append(loss_epochs)
         # Deco,des t he first 5 dev examples to display as output
-        small_test_acc = decode_rope(model, dev_bundles[0:5], do_print=True, do_plot_attn=True)
+        small_test_acc = decode_learned(model, dev_bundles[0:5], do_print=True, do_plot_attn=True)
         # Decodes 100 training examples and the entire dev set (1000 examples)
         print("Training accuracy (100 exs):")
-        train_acc =  decode_rope(model, train_bundles[0:100])
+        train_acc =  decode_learned(model, train_bundles[0:100])
         print("Dev accuracy (whole set):")
-        test_acc = decode_rope(model, dev_bundles)
-        acc_rope.append(test_acc)
+        test_acc = decode_learned(model, dev_bundles)
+        acc_learned.append(test_acc)
 
-    loss_rope = np.array(loss_rope)
-    acc_rope = np.array(acc_rope)
+    loss_learned = np.array(loss_learned)
+    acc_learned = np.array(acc_learned)
+    df = pd.DataFrame(loss_learned, columns=[f"Epoch_{i+1}" for i in range(loss_learned.shape[1])])
+    df.to_csv(f"loss_learned.csv", index=False)
+    print("Learned valued accuracy , mean {} and std {}".format(np.mean(acc_learned), np.std(acc_learned)))
+   
+
+
+    # Sine 
+    loss_sine = []
+    acc_sine=[]
+    for i in range(N_exp):
+        print("SINE Experiment {}".format(i))
+        model, loss_epochs = train_sine_classifier(args, train_bundles, dev_bundles,num_epochs=10)
+        loss_sine.append(loss_epochs)
+        # Deco,des t he first 5 dev examples to display as output
+        small_test_acc = decode_sin(model, dev_bundles[0:5], do_print=True, do_plot_attn=True)
+        # Decodes 100 training examples and the entire dev set (1000 examples)
+        print("Training accuracy (100 exs):")
+        train_acc =  decode_sin(model, train_bundles[0:100])
+        print("Dev accuracy (whole set):")
+        test_acc = decode_sin(model, dev_bundles)
+        acc_sine.append(test_acc)
+
+    loss_sine = np.array(loss_sine)
+    acc_sine = np.array(acc_sine)
+    df = pd.DataFrame(loss_sine, columns=[f"Epoch_{i+1}" for i in range(loss_sine.shape[1])])
+    df.to_csv(f"loss_sine.csv", index=False)
+    print("Sine valued accuracy , mean {} and std {}".format(np.mean(acc_sine), np.std(acc_sine)))
+   
+
+
+    # complex 
+    # for variant in ["real", "magnitude", "phase", "hybrid", "hybrid_norm"]:
+    #     loss_complex = []
+    #     acc_complex = []
+
+    #     print(f"format {variant}")
+
+    #     for i in range(N_exp):
+    #         print("Complex Experiment {}".format(i))
+    #         model, loss_epochs = train_complex_classifier(args, train_bundles, dev_bundles, variant, num_epochs = 10)
+    #         loss_complex.append(loss_epochs)
+    #         # Deco,des the first 5 dev examples to display as output
+    #         small_test_acc = decode_complex(model, dev_bundles[0:5], do_print=True, do_plot_attn=True)
+    #         # Decodes 100 training examples and the entire dev set (1000 examples)
+    #         print("Training accuracy (100 exs):")
+    #         train_acc =  decode_complex(model, train_bundles[0:100])
+    #         print("Dev accuracy (whole set):")
+    #         test_acc = decode_complex(model, dev_bundles)
+    #         acc_complex.append(test_acc)
+
+    #     loss_complex = np.array(loss_complex)
+    #     acc_complex = np.array(acc_complex)
+    #     df = pd.DataFrame(loss_complex, columns=[f"Epoch_{i+1}" for i in range(loss_complex.shape[1])])
+    #     df.to_csv(f"loss_complex_{variant}.csv", index=False)
+    #     print("Complex valued accuracy , mean {} and std {}".format(np.mean(acc_complex), np.std(acc_complex)))
+   
+
+
+
+    # rope
+    # loss_rope = []
+    # acc_rope =[]
+    # for i in range(N_exp):
+    #     print("ROPE Experiment {}".format(i))
+    #     model, loss_epochs = train_rope_classifier(args, train_bundles, dev_bundles, num_epochs = 10)
+    #     loss_rope.append(loss_epochs)
+    #     # Deco,des t he first 5 dev examples to display as output
+    #     small_test_acc = decode_rope(model, dev_bundles[0:5], do_print=True, do_plot_attn=True)
+    #     # Decodes 100 training examples and the entire dev set (1000 examples)
+    #     print("Training accuracy (100 exs):")
+    #     train_acc =  decode_rope(model, train_bundles[0:100])
+    #     print("Dev accuracy (whole set):")
+    #     test_acc = decode_rope(model, dev_bundles)
+    #     acc_rope.append(test_acc)
+
+    # loss_rope = np.array(loss_rope)
+    # acc_rope = np.array(acc_rope)
+    # df = pd.DataFrame(loss_rope, columns=[f"Epoch_{i+1}" for i in range(loss_rope.shape[1])])
+    # df.to_csv("loss_rope.csv", index=False)
+    # print("ROPE valued accuracy , mean {} and std {}".format(np.mean(acc_rope), np.std(acc_rope)))
     
-
-    # prints
-    # print("Sine valued accuracy , mean {} and std {}".format(np.mean(acc_sine), np.std(acc_sine)))
-    print("ROPE valued accuracy , mean {} and std {}".format(np.mean(acc_rope), np.std(acc_rope)))
-    # print("Learned valued accuracy , mean {} and std {}".format(np.mean(acc_learned), np.std(acc_learned)))
-    print("Complex valued accuracy , mean {} and std {}".format(np.mean(acc_complex), np.std(acc_complex)))
-
-    
-    # plots
-# plt.errorbar(
-#     range(1, len(loss_epochs) + 1),
-#     np.mean(loss_learned, 0),
-#     yerr=np.std(loss_learned, 0),
-#     fmt='^',
-#     label="Learned Valued",
-#     color='purple',
-#     linestyle="--"
-# )
-
-# ROPE
-plt.errorbar(
-    range(1, len(loss_epochs) + 1),
-    np.mean(loss_rope, 0),
-    yerr=np.std(loss_rope, 0),
-    fmt='o',
-    label="ROPE Valued",
-    color='darkorange',
-    linestyle="-"
-)
-
-# # Sine
-# plt.errorbar(
-#     range(1, len(loss_epochs) + 1),
-#     np.mean(loss_sine, 0),
-#     yerr=np.std(loss_sine, 0),
-#     fmt='s',  # Square marker
-#     label="Sine Valued",
-#     color='teal',
-#     linestyle=":"
-# )
-
-# Complex
-plt.errorbar(
-    range(1, len(loss_epochs) + 1),
-    np.mean(loss_complex, 0),
-    yerr=np.std(loss_complex, 0),
-    fmt='d',  # Diamond marker
-    label="Complex Valued",
-    color='crimson',
-    linestyle="-.")  # Dash-dot
-
-plt.xlabel("Epoch")
-plt.ylabel("Training Loss")
-plt.title("Training Loss vs. Epochs")
-plt.grid(True)
-plt.savefig("train.png")
-
-

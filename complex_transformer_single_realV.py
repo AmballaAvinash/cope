@@ -77,11 +77,12 @@ class ComplexEmbeddings(nn.Module):
     
 
 class PhaseAwareAttention(nn.Module):
-    def __init__(self, d_model, d_internal, alpha: float = 0.3):
+    def __init__(self, variant, d_model, d_internal, alpha: float = 0.3):
         super().__init__()
         self.d_model = d_model
         self.d_k = d_internal
         self.d_v = d_internal
+        self.variant  = variant 
         
         # Complex-linear projections - using real linear layers but applying to complex inputs
         self.q_proj_real = nn.Linear(d_model, d_internal, bias=False)
@@ -137,35 +138,102 @@ class PhaseAwareAttention(nn.Module):
             mag = torch.abs(attn_scores)
             phase = torch.cos(torch.angle(attn_scores))
             scores = (mag + self.alpha * phase) / np.sqrt(self.d_k)
-        elif self.variant == "":
+
+        elif self.variant == "apatt":  #named from paper 
             magnitude = torch.abs(attn_scores)
             sign = attn_scores / (magnitude + 1e-8)  # Complex sign
             scores = magnitude / np.sqrt(self.d_k)
 
             v_complex = torch.complex(v, torch.zeros_like(v))
             v = sign.unsqueeze(-2) * v_complex.unsqueeze(-3)
-        elif self.variant == "":
+            
+        elif self.variant == "riatt":
             attn_real = torch.real(attn_scores) / np.sqrt(self.d_k)
             attn_imag = torch.imag(attn_scores) / np.sqrt(self.d_k)
 
             attn_probs_real = self.softmax(attn_real)
             attn_probs_imag = self.softmax(attn_imag)
 
-            attn_scores = torch.complex(attn_probs_real, attn_probs_imag)
+            scores = torch.complex(attn_probs_real, attn_probs_imag)
 
-
+            #TODO cant plot complex scores 
         
-        #TODO
-        attn_weights = self.softmax(attn_scores_real)
+
+        attn_weights = self.softmax(scores)
         
         # Attend to real values
         output = torch.matmul(attn_weights, v)
         
         return output, attn_weights
 
+class TransformerLayer(nn.Module):
+    def __init__(self, d_model, d_internal):
+        """
+        :param d_model: The dimension of the inputs and outputs of the layer (note that the inputs and outputs
+        have to be the same size for the residual connection to work)
+        :param d_internal: The "internal" dimension used in the self-attention computation. Your keys and queries
+        should both be of this length.
+        """
+        super().__init__()
+        # raise Exception("Implement me")
+        
+        self.d_model = d_model
+        self.d_k = d_internal
+        self.d_v = d_internal
+        
+        self.W_q =  nn.Linear(self.d_model ,self.d_k, bias = False)  #torch.rand(self.d_model ,self.d_k, requires_grad=True)
+        self.W_k =  nn.Linear(self.d_model ,self.d_k, bias = False)  #torch.rand(self.d_model ,self.d_k, requires_grad=True)
+        self.W_v =  nn.Linear(self.d_model ,self.d_v, bias = False)  # torch.rand(self.d_model ,self.d_v, requires_grad=True)
+        
+        
+        self.linear1 = nn.Linear(self.d_v, d_model)
+        self.linear2 = nn.Linear(self.d_model, 32)
+        self.linear3 = nn.Linear(32, self.d_model)
+        
+        self.softmax = nn.Softmax()
+        self.relu = nn.ReLU()
 
+        
+        self.layernorm = nn.LayerNorm(self.d_model)
+
+    def forward(self, input_vecs):
+        """
+        :param input_vecs: an input tensor of shape [seq len, d_model]
+        :return: a tuple of two elements:
+            - a tensor of shape [seq len, d_model] representing the log probabilities of each position in the input
+            - a tensor of shape [seq len, seq len], representing the attention map for this layer
+        """
+        # raise Exception("Implement me")
+        
+        x = input_vecs
+        
+
+        
+        Q = self.W_q(x)
+        K = self.W_k(x)
+        V = self.W_v(x)
+        
+        attention_map = torch.matmul(Q, K.t())
+        H = torch.matmul(self.softmax(attention_map/np.sqrt(self.d_k)), V)
+        H = self.linear1(H)
+        
+        
+        # Add and Norm
+        Z1 = self.layernorm(x+H)
+        
+        # Linear layers
+        Z2 = self.relu(self.linear2(Z1))
+
+        Z2 = self.linear3(Z2)
+        
+        # Add norm
+        Z2 = self.layernorm(Z2+Z1)
+
+        return Z2  , attention_map      
+        
+        
 class ComplexTransformerLayer(nn.Module):
-    def __init__(self, d_model, d_internal,alpha):
+    def __init__(self,variant, d_model, d_internal,alpha):
         """
         :param d_model: The dimension of the inputs and outputs of the layer
         :param d_internal: The "internal" dimension used in the self-attention computation
@@ -175,11 +243,9 @@ class ComplexTransformerLayer(nn.Module):
         self.d_model = d_model
         self.d_k = d_internal
         
-        self.attention = PhaseAwareAttention(d_model, d_internal,alpha)
+        self.attention = PhaseAwareAttention(variant, d_model, d_internal,alpha)
         
-        # self.linear1 = nn.Linear(d_internal, d_model)
-        self.linear1_real = nn.Linear(d_internal, d_model)
-        self.linear1_imag = nn.Linear(d_internal, d_model)
+        self.linear1 = nn.Linear(d_internal, d_model)
         self.linear2 = nn.Linear(d_model, 32)
         self.linear3 = nn.Linear(32, d_model)
         
@@ -198,14 +264,11 @@ class ComplexTransformerLayer(nn.Module):
         
         # Phase-aware attention
         H, attention_map = self.attention(z)
-        # H = self.linear1(H)
-        H_real = self.linear1_real(H.real) - self.linear1_imag(H.imag)
-        H_imag = self.linear1_real(H.imag) + self.linear1_imag(H.real)
+        H = self.linear1(H)
         
         # Add and Norm (using real part for residual connection)
         # use real part for layer norm but maintain complex structure
-        Z1_real = self.layernorm1(z.real +  H.real)
-        Z1 = torch.complex(Z1_real, z.imag + H.imag)
+        Z1_real = self.layernorm1(z.real +  H)
 
         
         # Feed-forward network - apply to real part only for simplicity
@@ -218,12 +281,12 @@ class ComplexTransformerLayer(nn.Module):
 
         # return Z2, attention_map
         #TODO phase information is maintained
-        return torch.complex(Z2,Z1.imag) ,attention_map
+        return Z2 ,attention_map
 
 
 # Should contain your overall Transformer implementation with complex embeddings
 class Transformer(nn.Module):
-    def __init__(self, vocab_size, num_positions, d_model, d_internal, num_classes, num_layers,gamma_pe: float = 1.0, alpha_attn: float = 0.2):
+    def __init__(self, vocab_size, num_positions, d_model, d_internal, num_classes, num_layers, variant, gamma_pe: float = 1.0, alpha_attn: float = 0.2):
         """
         :param vocab_size: vocabulary size of the embedding layer
         :param num_positions: max sequence length that will be fed to the model; should be 20
@@ -240,25 +303,22 @@ class Transformer(nn.Module):
         self.d_k = d_internal
         self.num_classes = num_classes
         self.num_layers = num_layers
+        self.variant = variant
         
         # Complex embeddings instead of regular embeddings + positional encoding
         self.complex_embedding = ComplexEmbeddings(self.vocab_size, self.d_model, self.num_positions, gamma=gamma_pe)
         
         #TODO
         # Create multiple transformer layers
-        # self.first_layer = ComplexTransformerLayer(self.d_model, self.d_k)
+        self.first_layer = ComplexTransformerLayer(self.variant, self.d_model, self.d_k, alpha=alpha_attn)
 
-        # self.transformer_layers = nn.ModuleList([
-        #     TransformerLayer(self.d_model, self.d_k) 
-        #     for _ in range(self.num_layers-1)
-        # ])
-        
         self.transformer_layers = nn.ModuleList([
-            ComplexTransformerLayer(self.d_model, self.d_k, alpha=alpha_attn) 
-            for _ in range(self.num_layers)
+            TransformerLayer(self.d_model, self.d_k) 
+            for _ in range(self.num_layers-1)
         ])
+        
 
-        self.linear1 = nn.Linear(2*self.d_model, 32)
+        self.linear1 = nn.Linear(self.d_model, 32)
         self.linear2 = nn.Linear(32, self.num_classes)
         
         self.softmax = nn.Softmax(dim=-1)
@@ -274,34 +334,32 @@ class Transformer(nn.Module):
         
         attention_maps = []
 
-        # Z, A = self.first_layer(Z)
-        # attention_maps.append(A)
+        Z, A = self.first_layer(Z)
+        attention_maps.append(A)
 
         for transformer_layer in self.transformer_layers:
             Z, A = transformer_layer(Z)
             attention_maps.append(A)
             
         # Final classification layers
-        features = torch.cat([Z.real, Z.imag], dim=-1)  # Concatenate real and imaginary
 
-        Z = self.linear1(features)
+        Z = self.linear1(Z)
         Z = torch.log(self.softmax(self.linear2(Z)))
         
         return Z, attention_maps
 
 
 
-def train_complex_classifier(args, train, dev):
+def train_complex_classifier(args, train, dev, variant, num_epochs ):
     """
     Train the complex transformer classifier
     """
     # Initialize the complex transformer model
-    model = Transformer(vocab_size=27, num_positions=20, d_model=64, d_internal=64, num_classes=3, num_layers=4)
+    model = Transformer(variant = variant, vocab_size=27, num_positions=20, d_model=64, d_internal=64, num_classes=3, num_layers=4)
     model.zero_grad()
     model.train()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     
-    num_epochs = 20
     loss_epochs = []
     for t in range(0, num_epochs):
         print("epoch {}".format(t))
