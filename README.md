@@ -1,3 +1,5 @@
+News: CoPE got accepted at NeurIPS 2025, SPIGM workshop
+
 CoPE: Enhanced Transformer with Complex Positional Encoding
 
 `
